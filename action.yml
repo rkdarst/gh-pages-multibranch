@@ -9,71 +9,104 @@ inputs:
   default_branch:
     description: "Default branch of the repo (to get the default site)"
     default: 'main'
-  branch:
+  publish_branch:
     description: "Github Pages branch"
-    default: gh-pages
+    default: 'gh-pages'
 runs:
   using: "composite"
   steps:
+    - name: Info
+      shell: bash
+      run: |
+        echo "Debugging info"
+        set -x
+        echo event_name: ${{ github.event_name }}
+        echo github.ref: ${{ github.ref }}
+        echo refs/heads/+ inputs.default_branch: 'refs/heads/${{inputs.default_branch}}'
+        echo github.event_name == 'push' , github.ref == 'refs/heads/${{inputs.default_branch}}'
+        git branch -avv
+        git rev-parse --verify gh-pages || true
+        git rev-parse --verify remotes/origin/main || true
+        git rev-parse --verify remotes/origin/gh-pages || true
+        git rev-parse --verify remotes/origin/br1 || true
     - name: Make temporary directory
       id: mktmpdir
       if: ${{ github.event_name == 'push' }}
-      run:
+      shell: bash
+      run: |
         echo "::set-output name=tmpdir::$(mktemp -d)"
+    - name: Assemble variables
+      id: variables
+      if: ${{ github.event_name == 'push' }}
+      shell: bash
+      run: |
+        echo "::set-output name=refheads_default_branch::refs/heads/${{inputs.default_branch}}"
     - name: Clone old gh-pages
       if: ${{ github.event_name == 'push' }}
+      shell: bash
       run: |
+        echo "Clone old gh-pages branch"
         set -x
         git fetch
-        ( git branch ${{ inputs.branch }} remotes/origin/${{ inputs.branch }} && git clone . --branch=gh-pages ${{ steps.mktempdir.outputs.tmpdir }} )
-        rm -rf ${{ steps.mktempdir.outputs.tmpdir }}/.git/
-        mkdir -p ${{ steps.mktempdir.outputs.tmpdir }}/branch/
+        if git rev-parse --verify remotes/origin/${{inputs.publish_branch}} ; then
+          git branch ${{inputs.publish_branch}} remotes/origin/${{inputs.publish_branch}}
+          git clone . --branch=${{inputs.publish_branch}} ${{steps.mktmpdir.outputs.tmpdir}}
+        else
+          # no branch exists so don't start with anything
+          true
+        fi
+        rm -rf ${{ steps.mktmpdir.outputs.tmpdir }}/.git/
+        mkdir -p ${{ steps.mktmpdir.outputs.tmpdir }}/branch/
     # If a push and default branch, copy build to _gh-pages/ as the "main"
     # deployment.
     - name: Copy new build (default branch)
-      if: |
-        contains(github.event_name, 'push') &&
-        github.ref == join(['refs/heads/', inputs.default_branch], '')
+      if: ${{ github.event_name == 'push' && github.ref == steps.variables.outputs.refheads_default_branch }}
+      shell: bash
       run: |
+        echo "Copy build on default branch"
         set -x
         # Delete everything under _gh-pages/ that is from the
-        # primary branch deployment.  Eicludes the other branches
+        # primary branch deployment.  Includes the other branches
         # _gh-pages/branch-* paths, and not including
         # _gh-pages itself.
-        ( cd ${{ steps.mktempdir.outputs.tmpdir }} &&
-          find . -mindepth 1 ! -path './branch*' -delete
+        ( cd ${{ steps.mktmpdir.outputs.tmpdir }} &&
+          find . -mindepth 1 ! -path './branch' ! -path './branch/*' -delete
         )
-        rsync -a ${{inputs.directory}} ${{ steps.mktempdir.outputs.tmpdir }}
+        rsync -raiv ${{inputs.directory}}/ ${{ steps.mktmpdir.outputs.tmpdir }}/
     # If a push and not on default branch, then copy the build to
     # _gh-pages/branch/$brname (transforming '/' into '--')
-    - name: Copy new build (branch)
-      if: |
-        contains(github.event_name, 'push') &&
-        github.ref != join(['refs/heads/', inputs.default_branch], '')
+    - name: Copy new build (non-default branch)
+      if: ${{ github.event_name == 'push' }}
+      shell: bash
       run: |
+        echo "Copy build branch/ directory"
         set -x
         #brname=$(git rev-parse --abbrev-ref HEAD)
         brname="${{github.ref}}"
         brname="${brname##refs/heads/}"
         brdir=${brname//\//--}   # replace '/' with '--'
-        rm -rf   ${{steps.mktempdir.outputs.tmpdir}}/branch/${brdir}
-        rsync -a ${{inputs.directory}} ${{steps.mktempdir.outputs.tmpdir}}/branch/${brdir}
+        rm -rf   ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}
+        rsync -raiv ${{inputs.directory}}/ ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}/
     # Go through each branch in _gh-pages/branch/, if it's not a
     # ref, then delete it.
     - name: Delete old feature branches
       if: ${{ github.event_name == 'push' }}
+      shell: bash
       run: |
+        echo "Delete old feature branches"
         set -x
-        cd ${{ steps.mktempdir.outputs.tmpdir }}
-        for brdir in `ls branch/` ; do
+        for brdir in `ls ${{ steps.mktmpdir.outputs.tmpdir }}/branch/` ; do
             brname=${brdir//--/\/}   # replace '--' with '/'
-            if ! git show-ref remotes/origin/$brname ; then
+            if ! git rev-parse --verify remotes/origin/$brname ; then
                 echo "Removing $brdir"
-                rm -r ./branch/$brdir/
+                rm -r ${{ steps.mktmpdir.outputs.tmpdir }}/branch/$brdir/
             fi
         done
     - name: Copy multipages directory back
+      if: ${{ github.event_name == 'push' }}
+      shell: bash
       run: |
+        echo "Copy multipages directory back"
         set -x
         rm -r ${{inputs.directory}}
-        rsync -raiv ${{ steps.mktempdir.outputs.tmpdir }}/ ${{inputs.directory}}/
+        rsync -raiv ${{ steps.mktmpdir.outputs.tmpdir }}/ ${{inputs.directory}}/
