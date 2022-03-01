@@ -1,0 +1,30 @@
+name: test
+on:
+  push
+jobs:
+  multipages:
+    name: Test multipages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: create site
+        run: |
+          mkdir -p public
+          echo ${{github.ref}} > public/index.html
+      - name: multipages
+        uses: rkdarst/gh-pages-multibranch@main
+        if: ${{ github.event_name == 'push' }}
+        with:
+          directory: public
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.event_name == 'push' }}
+        with:
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/
+          force_orphan: true
+
