@@ -1,3 +1,7 @@
+# CC-0 (public domain)
+# but please link to the source if it's useful for people to more
+# easily reuse.
+
 name: gh-pages multibranch
 description: Manage multiple branches in gh-pages
 
