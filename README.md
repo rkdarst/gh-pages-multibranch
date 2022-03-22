@@ -26,7 +26,7 @@ pages site, by using this arrangement:
 
 ```yaml
 name: sphinx
-on: [push, pull_request]
+on: [push, pull_request]  # No need to limit to certain branches
 jobs:
   your-job:
     steps:
