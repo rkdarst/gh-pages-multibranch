@@ -10,6 +10,9 @@ inputs:
     description: 'Directory to multiplex in, also source'
     required: true
     default: 'public'
+  cname:
+    description: 'CNAME of the repo, if any (default autodetect from repo)'
+    default: ''
   default_branch:
     description: "Default branch of the repo (to get the default site)"
     default: 'main'
@@ -45,6 +48,26 @@ runs:
       shell: bash
       run: |
         echo "::set-output name=refheads_default_branch::refs/heads/${{inputs.default_branch}}"
+    - name: Find CNAME
+      id: cname
+      if: ${{ github.event_name == 'push' }}
+      shell: bash
+      run: |
+        if [ -n "${{inputs.cname}}" ] ; then
+            echo "CNAME from the action input"
+            echo "::set-output name=cname::${{inputs.cname}}"
+            exit 0
+        elif [ -e "${{inputs.directory}}/CNAME" ] ; then
+            echo "CNAME from the publish directory ${{inputs.directory}}"
+            echo "::set-output name=cname::$(cat ${{inputs.directory}}/CNAME)"
+            exit 0
+        elif [ -e CNAME ] ; then
+            echo "CNAME from repository root"
+            echo "::set-output name=cname::$(cat CNAME)"
+            exit 0
+        fi
+        echo "CNAME not found"
+        echo "::set-output name=cname::"
     - name: Clone old gh-pages
       if: ${{ github.event_name == 'push' }}
       shell: bash
@@ -77,8 +100,8 @@ runs:
           find . -mindepth 1 ! -path './branch' ! -path './branch/*' -delete
         )
         rsync -raiv ${{inputs.directory}}/ ${{ steps.mktmpdir.outputs.tmpdir }}/
-        if [ -e CNAME ] ; then
-            echo ::notice title=Preview link::Default site available at https://$(cat CNAME)/
+        if [ -n "${{ steps.cname.outputs.cname }}" ] ; then
+            echo ::notice title=Preview link::Default site available at https://${{ steps.cname.outputs.cname }}/
         else
             echo ::notice title=Preview link::Default site available at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/
         fi
@@ -96,8 +119,8 @@ runs:
         brdir=${brname//\//--}   # replace '/' with '--'
         rm -rf   ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}
         rsync -raiv ${{inputs.directory}}/ ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}/
-        if [ -e CNAME ] ; then
-            echo ::notice title=Branch preview link::Branch can be previewed at https://$(cat CNAME)/branch/${brdir}/
+        if [ -n "${{ steps.cname.outputs.cname }}" ] ; then
+            echo ::notice title=Branch preview link::Branch can be previewed at https://${{ steps.cname.outputs.cname }}/branch/${brdir}/
         else
             echo ::notice title=Branch preview link::Branch can be previewed at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/branch/${brdir}/
         fi
