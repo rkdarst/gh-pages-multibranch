@@ -38,6 +38,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         with:
           directory: public
+      # Remember to not limite your deploy step to the default branch!
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' }}
