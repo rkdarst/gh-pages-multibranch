@@ -30,7 +30,7 @@ on: [push, pull_request]  # No need to limit to certain branches
 jobs:
   your-job:
     steps:
-	  [ checkout]
+      [ checkout]
       [ place your built site in ./public ]
 
       - name: multipages
