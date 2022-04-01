@@ -24,13 +24,17 @@ runs:
   steps:
     - name: Info
       shell: bash
+      env:
+        event_name: ${{ github.event_name }}
+        ref: ${{ github.ref }}
+        default_branch: ${{inputs.default_branch}}
       run: |
         echo "Debugging info"
         set -x
-        echo event_name: ${{ github.event_name }}
-        echo github.ref: ${{ github.ref }}
-        echo refs/heads/+ inputs.default_branch: 'refs/heads/${{inputs.default_branch}}'
-        echo github.event_name == 'push' , github.ref == 'refs/heads/${{inputs.default_branch}}'
+        echo event_name: "${event_name}"
+        echo github.ref: "${ref}"
+        echo refs/heads/+ inputs.default_branch: "refs/heads/${default_branch}"
+        echo github.event_name == 'push' , github.ref == "refs/heads/${default_branch}"
         git branch -avv
         git rev-parse --verify gh-pages || true
         git rev-parse --verify remotes/origin/main || true
@@ -46,20 +50,25 @@ runs:
       id: variables
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        default_branch: ${{inputs.default_branch}}
       run: |
-        echo "::set-output name=refheads_default_branch::refs/heads/${{inputs.default_branch}}"
+        echo "::set-output name=refheads_default_branch::refs/heads/${default_branch}"
     - name: Find CNAME
       id: cname
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        inputs_cname: ${{inputs.cname}}
+        directory: ${{inputs.directory}}
       run: |
-        if [ -n "${{inputs.cname}}" ] ; then
+        if [ -n "${inputs_cname}" ] ; then
             echo "CNAME from the action input"
-            echo "::set-output name=cname::${{inputs.cname}}"
+            echo "::set-output name=cname::${inputs_cname}"
             exit 0
-        elif [ -e "${{inputs.directory}}/CNAME" ] ; then
-            echo "CNAME from the publish directory ${{inputs.directory}}"
-            echo "::set-output name=cname::$(cat ${{inputs.directory}}/CNAME)"
+        elif [ -e "${directory}/CNAME" ] ; then
+            echo "CNAME from the publish directory ${directory}"
+            echo "::set-output name=cname::$(cat ${directory}/CNAME)"
             exit 0
         elif [ -e CNAME ] ; then
             echo "CNAME from repository root"
@@ -68,27 +77,36 @@ runs:
         fi
         echo "CNAME not found"
         echo "::set-output name=cname::"
+    # Clone the old gh-pages branch and copy that to tmpdir, this is
+    # the base deployment (we keep all old pages)
     - name: Clone old gh-pages
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        publish_branch: ${{inputs.publish_branch}}
+        tmpdir: ${{steps.mktmpdir.outputs.tmpdir}}
       run: |
         echo "Clone old gh-pages branch"
         set -x
         git fetch
-        if git rev-parse --verify remotes/origin/${{inputs.publish_branch}} ; then
-          git branch ${{inputs.publish_branch}} remotes/origin/${{inputs.publish_branch}}
-          git clone . --branch=${{inputs.publish_branch}} ${{steps.mktmpdir.outputs.tmpdir}}
+        if git rev-parse --verify "remotes/origin/${publish_branch}" ; then
+          git branch -- "${publish_branch}" "remotes/origin/${publish_branch}"
+          git clone . "--branch=${publish_branch}" ${tmpdir}
         else
           # no branch exists so don't start with anything
           true
         fi
-        rm -rf ${{ steps.mktmpdir.outputs.tmpdir }}/.git/
-        mkdir -p ${{ steps.mktmpdir.outputs.tmpdir }}/branch/
+        rm -rf -- "${tmpdir}/.git/"
+        mkdir -p -- "${tmpdir}/branch/"
     # If a push and default branch, copy build to _gh-pages/ as the "main"
     # deployment.
     - name: Copy new build (default branch)
       if: ${{ github.event_name == 'push' && github.ref == steps.variables.outputs.refheads_default_branch }}
       shell: bash
+      env:
+        directory: ${{inputs.directory}}
+        cname: ${{ steps.cname.outputs.cname }}
+        tmpdir: ${{ steps.mktmpdir.outputs.tmpdir }}
       run: |
         echo "Copy build on default branch"
         set -x
@@ -96,54 +114,71 @@ runs:
         # primary branch deployment.  Includes the other branches
         # _gh-pages/branch-* paths, and not including
         # _gh-pages itself.
-        ( cd ${{ steps.mktmpdir.outputs.tmpdir }} &&
+        ( cd "${tmpdir}" &&
           find . -mindepth 1 ! -path './branch' ! -path './branch/*' -delete
         )
-        rsync -raiv ${{inputs.directory}}/ ${{ steps.mktmpdir.outputs.tmpdir }}/
-        if [ -n "${{ steps.cname.outputs.cname }}" ] ; then
-            echo ::notice title=Preview link::Default site available at https://${{ steps.cname.outputs.cname }}/
+        rsync -raiv -- "${directory}/" "${tmpdir}/"
+        if [ -n "${cname}" ] ; then
+            echo ::notice "title=Preview link::Default site available at https://${cname}/"
         else
-            echo ::notice title=Preview link::Default site available at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/
+            echo ::notice "title=Preview link::Default site available at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/"
         fi
     # If a push and not on default branch, then copy the build to
     # _gh-pages/branch/$brname (transforming '/' into '--')
     - name: Copy new build (non-default branch)
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        ref: ${{github.ref}}
+        tmpdir: ${{steps.mktmpdir.outputs.tmpdir}}
+        cname: ${{ steps.cname.outputs.cname }}
+        directory: ${{inputs.directory}}
       run: |
         echo "Copy build branch/ directory"
         set -x
         #brname=$(git rev-parse --abbrev-ref HEAD)
-        brname="${{github.ref}}"
+        brname="${ref}"
         brname="${brname##refs/heads/}"
-        brdir=${brname//\//--}   # replace '/' with '--'
-        rm -rf   ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}
-        rsync -raiv ${{inputs.directory}}/ ${{steps.mktmpdir.outputs.tmpdir}}/branch/${brdir}/
-        if [ -n "${{ steps.cname.outputs.cname }}" ] ; then
-            echo ::notice title=Branch preview link::Branch can be previewed at https://${{ steps.cname.outputs.cname }}/branch/${brdir}/
+        brdir="${brname//\//--}"   # replace '/' with '--'
+        rm -rf -- "${tmpdir}/branch/${brdir}"
+        rsync -raiv -- "${directory}/" "${tmpdir}/branch/${brdir}/"
+        if [ -n "${cname}" ] ; then
+            echo ::notice "title=Branch preview link::Branch can be previewed at https://${cname}/branch/${brdir}/"
         else
-            echo ::notice title=Branch preview link::Branch can be previewed at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/branch/${brdir}/
+            echo ::notice "title=Branch preview link::Branch can be previewed at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/branch/${brdir}/"
         fi
     # Go through each branch in _gh-pages/branch/, if it's not a
     # ref, then delete it.
     - name: Delete old feature branches
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        tmpdir: ${{ steps.mktmpdir.outputs.tmpdir }}
       run: |
         echo "Delete old feature branches"
         set -x
-        for brdir in `ls ${{ steps.mktmpdir.outputs.tmpdir }}/branch/` ; do
-            brname=${brdir//--/\/}   # replace '--' with '/'
-            if ! git rev-parse --verify remotes/origin/$brname ; then
+        for brdir in ${tmpdir}/branch/* ; do
+            # no matching files gives only the pattern back, exclude it
+            if [ ! -e "$brdir" ] ; then continue ; fi
+            # Find the branch name from filename
+            brname="${brdir##*/}"   # strip leading */
+            brname="${brname//--/\/}"   # replace '--' with '/'
+            # Verify existence or remove
+            if ! git rev-parse --verify "remotes/origin/$brname" ; then
                 echo "Removing $brdir"
-                rm -r ${{ steps.mktmpdir.outputs.tmpdir }}/branch/$brdir/
+                rm -r -- "$brdir/"
             fi
         done
+    # Rsync the whole multiplexed path back to the original input
+    # directory
     - name: Copy multipages directory back
       if: ${{ github.event_name == 'push' }}
       shell: bash
+      env:
+        directory: ${{inputs.directory}}
+        tmpdir: ${{ steps.mktmpdir.outputs.tmpdir }}
       run: |
         echo "Copy multipages directory back"
         set -x
-        rm -r ${{inputs.directory}}
-        rsync -raiv ${{ steps.mktmpdir.outputs.tmpdir }}/ ${{inputs.directory}}/
+        rm -r -- "${directory}"
+        rsync -raiv -- "${tmpdir}/" "${directory}/"
