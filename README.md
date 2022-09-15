@@ -38,7 +38,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         with:
           directory: public
-      # Remember to not limite your deploy step to the default branch!
+      # Remember to not limit your deploy step to the default branch!
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' }}
@@ -48,6 +48,23 @@ jobs:
           publish_dir: public/
           force_orphan: true
 ```
+
+## Options
+
+Used with `with:` as above.
+
+* `directory`: relative path to the directory that contains the site
+  (and the contents is replaced with the multi-branch site)
+* `cname`: this CNAME is used for generating the preview links.  It is
+  tried to be auto-detected from the `directory` by default, if it is
+  already there.  (CNAME is needed since some preview might be
+  ORG.github.io/[repo/] and some might be CNAME.domain/.
+* `default_branch`: The branch name that gets the top-level site.
+  Default `main`.
+* `publish_branch`: The branch to be pushed to for gh-pages, default
+  `gh-pages`.  It is *not* automatically pushed there, you need to
+  publish there in a separate step.  This is used to mix the old and
+  new pages.
 
 ## See also
 
