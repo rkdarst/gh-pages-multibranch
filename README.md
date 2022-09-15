@@ -32,6 +32,7 @@ jobs:
     steps:
       [ checkout]
       [ place your built site in ./public ]
+      [ add CNAME if you use it, to autodetect it in the next step ]
 
       - name: multipages
         uses: rkdarst/gh-pages-multibranch@main
