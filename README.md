@@ -50,6 +50,12 @@ jobs:
           force_orphan: true
 ```
 
+Surprising points:
+* Make sure you don't limit your workflow to only your default
+  branch.  `on: [push, pull_request]` works fine since other branches
+  won't get published to `/`.
+
+
 ## Options
 
 Used with `with:` as above.
