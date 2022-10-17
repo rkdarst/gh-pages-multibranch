@@ -1,4 +1,4 @@
-name: test
+name: test against 'dev' branch
 on:
   push
 jobs:
@@ -15,7 +15,7 @@ jobs:
           mkdir -p public
           echo ${{github.ref}} > public/index.html
       - name: multipages
-        uses: rkdarst/gh-pages-multibranch@main
+        uses: rkdarst/gh-pages-multibranch@dev
         if: ${{ github.event_name == 'push' }}
         with:
           directory: public
