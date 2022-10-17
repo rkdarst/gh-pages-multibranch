@@ -45,7 +45,8 @@ runs:
       if: ${{ github.event_name == 'push' }}
       shell: bash
       run: |
-        echo "::set-output name=tmpdir::$(mktemp -d)"
+        #echo "::set-output name=tmpdir::$(mktemp -d)"
+        echo "tmpdir=$(mktemp -d)" >> $GITHUB_OUTPUT
     - name: Assemble variables
       id: variables
       if: ${{ github.event_name == 'push' }}
@@ -53,7 +54,8 @@ runs:
       env:
         default_branch: ${{inputs.default_branch}}
       run: |
-        echo "::set-output name=refheads_default_branch::refs/heads/${default_branch}"
+        #echo "::set-output name=refheads_default_branch::refs/heads/${default_branch}"
+        echo "refheads_default_branch=refs/heads/${default_branch}" >> $GITHUB_OUTPUT
     - name: Find CNAME
       id: cname
       if: ${{ github.event_name == 'push' }}
@@ -64,19 +66,23 @@ runs:
       run: |
         if [ -n "${inputs_cname}" ] ; then
             echo "CNAME from the action input"
-            echo "::set-output name=cname::${inputs_cname}"
+            #echo "::set-output name=cname::${inputs_cname}"
+            echo "cname=${inputs_cname}" >> $GITHUB_OUTPUT
             exit 0
         elif [ -e "${directory}/CNAME" ] ; then
             echo "CNAME from the publish directory ${directory}"
-            echo "::set-output name=cname::$(cat ${directory}/CNAME)"
+            #echo "::set-output name=cname::$(cat ${directory}/CNAME)"
+            echo "cname=$(cat ${directory}/CNAME)" >> $GITHUB_OUTPUT
             exit 0
         elif [ -e CNAME ] ; then
             echo "CNAME from repository root"
-            echo "::set-output name=cname::$(cat CNAME)"
+            #echo "::set-output name=cname::$(cat CNAME)"
+            echo "name=cname=$(cat CNAME)" >> $GITHUB_OUTPUT
             exit 0
         fi
         echo "CNAME not found"
-        echo "::set-output name=cname::"
+        #echo "::set-output name=cname::"
+        echo "cname=" >> $GITHUB_OUTPUT
     # Clone the old gh-pages branch and copy that to tmpdir, this is
     # the base deployment (we keep all old pages)
     - name: Clone old gh-pages
