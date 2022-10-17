@@ -27,12 +27,16 @@ runs:
       env:
         event_name: ${{ github.event_name }}
         ref: ${{ github.ref }}
+        head_ref: ${{ github.head_ref }}
+        base_ref: ${{ github.base_ref }}
         default_branch: ${{inputs.default_branch}}
       run: |
         echo "Debugging info"
         set -x
         echo event_name: "${event_name}"
         echo github.ref: "${ref}"
+        echo github.base_ref: "${head_ref}"
+        echo github.head_ref: "${base_ref}"
         echo refs/heads/+ inputs.default_branch: "refs/heads/${default_branch}"
         echo github.event_name == 'push' , github.ref == "refs/heads/${default_branch}"
         git branch -avv
