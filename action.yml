@@ -111,6 +111,7 @@ runs:
     # If a push and default branch, copy build to _gh-pages/ as the "main"
     # deployment.
     - name: Copy new build (default branch)
+      id: copy_build_default_branch
       if: ${{ github.event_name == 'push' && github.ref == steps.variables.outputs.refheads_default_branch }}
       shell: bash
       env:
@@ -129,13 +130,16 @@ runs:
         )
         rsync -raiv -- "${directory}/" "${tmpdir}/"
         if [ -n "${cname}" ] ; then
+            echo "preview_link=https://${cname}/" >> $GITHUB_OUTPUT
             echo ::notice "title=Preview link::Default site available at https://${cname}/"
         else
+            echo "preview_link=https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/" >> $GITHUB_OUTPUT
             echo ::notice "title=Preview link::Default site available at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/"
         fi
     # If a push and not on default branch, then copy the build to
     # _gh-pages/branch/$brname (transforming '/' into '--')
     - name: Copy new build (non-default branch)
+      id: copy_build_nondefault_branch
       if: ${{ github.event_name == 'push' }}
       shell: bash
       env:
@@ -153,8 +157,10 @@ runs:
         rm -rf -- "${tmpdir}/branch/${brdir}"
         rsync -raiv -- "${directory}/" "${tmpdir}/branch/${brdir}/"
         if [ -n "${cname}" ] ; then
+            echo "preview_link=https://${cname}/branch/${brdir}/" >> $GITHUB_OUTPUT
             echo ::notice "title=Branch preview link::Branch can be previewed at https://${cname}/branch/${brdir}/"
         else
+            echo "preview_link=https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/branch/${brdir}/" >> $GITHUB_OUTPUT
             echo ::notice "title=Branch preview link::Branch can be previewed at https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/branch/${brdir}/"
         fi
     # Go through each branch in _gh-pages/branch/, if it's not a
@@ -192,3 +198,19 @@ runs:
         set -x
         rm -r -- "${directory}"
         rsync -raiv -- "${tmpdir}/" "${directory}/"
+    - name: Generate preview link summary
+      shell: bash
+      env:
+        preview_link:  ${{ steps.copy_build_default_branch.outputs.preview_link }}
+        preview_link2: ${{ steps.copy_build_nondefault_branch.outputs.preview_link }}
+      run: |
+        # Use link from either the default branch step or nondefault
+        # branch step, whichever is set.
+        echo $preview_link , $preview_link2
+        preview_link=${preview_link:=${preview_link2}}
+        echo $preview_link
+
+        cat << EOF >> $GITHUB_STEP_SUMMARY
+        # Preview link
+        Preview the site corresponding to this commit at <${preview_link}> .
+        EOF
