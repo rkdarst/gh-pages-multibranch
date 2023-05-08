@@ -35,7 +35,7 @@ jobs:
       [ add CNAME if you use it, to autodetect it in the next step ]
 
       - name: multipages
-        uses: rkdarst/gh-pages-multibranch@main
+        uses: coderefinery/gh-pages-multibranch@main
         if: ${{ github.event_name == 'push' }}
         with:
           directory: public
