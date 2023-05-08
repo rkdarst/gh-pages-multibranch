@@ -60,8 +60,11 @@ Surprising points:
 
 Used with `with:` as above.
 
-* `directory`: relative path to the directory that contains the site
-  (and the contents is replaced with the multi-branch site)
+* `directory`: relative path to the directory that contains the HTML
+  site to be multiplexed and published.
+  (The contents are replaced with the multi-branch site - so this
+  directory is both the input to this action, and the input to the
+  action that publishes it to the gh-pages branch)
 * `cname`: this CNAME is used for generating the preview links.  It is
   tried to be auto-detected from the `directory` by default, if it is
   already there.  (CNAME is needed since some preview might be
